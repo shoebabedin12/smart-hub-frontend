@@ -3,19 +3,24 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { Bell, BookOpen, MessageSquare, LogOut, Shield, ClipboardList } from 'lucide-react';
+import { Bell, BookOpen, MessageSquare, LogOut, Shield, ClipboardList, User, Calendar } from 'lucide-react';
 import { getUser, logout } from 'app/lib/auth';
+import api from 'app/lib/api';
 
 export default function Navbar() {
   const path = usePathname();
-  // hydration fix korar jonno state use kora hoyeche
   const [mounted, setMounted] = useState(false);
   const [user, setUser] = useState<any>(null);
 
   useEffect(() => {
-    // browser-e component mount hobar por user data load hobe
     setMounted(true);
-    setUser(getUser());
+    const u = getUser();
+    setUser(u);
+    if (u) {
+      api.get('/profile').then(({ data }) => {
+        setUser((prev: any) => ({ ...prev, profile_photo: data.profile_photo }));
+      }).catch(() => { });
+    }
   }, []);
 
   const links = [
@@ -23,7 +28,13 @@ export default function Navbar() {
     { href: '/resources', label: 'Resources', icon: BookOpen },
     { href: '/results', label: 'Results', icon: ClipboardList },
     { href: '/chat', label: 'AI Chat', icon: MessageSquare },
-    ...(user?.role !== 'student' ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
+    ...(user?.role !== 'student' ? [
+      { href: '/routine/manage', label: 'Routine', icon: Calendar },
+      { href: '/assignments/manage', label: 'Assignments', icon: ClipboardList },
+      { href: '/admin', label: 'Admin', icon: Shield },
+    ] : [
+      { href: '/routine', label: 'Routine', icon: Calendar },
+      { href: '/assignments', label: 'Assignments', icon: ClipboardList },]),
   ];
 
   // component mount na hoya porjonto server ar browser-er modhe mil rakhar jonno null ba minimal HTML return kora hoy
@@ -58,10 +69,25 @@ export default function Navbar() {
         </div>
 
         <div className="flex items-center gap-3">
-          {user && <span className="text-sm text-gray-500">{user.full_name}</span>}
-          <button onClick={logout} className="text-gray-400 hover:text-red-500 transition-colors">
+          {user && <Link href="/profile" className='flex items-center gap-x-1'>
+            <span className='border m-2 size-7.5 rounded-full overflow-hidden flex items-center justify-center'>
+              {user.profile_photo ? (
+                <img
+                  src={`http://localhost:5000/${user.profile_photo}`}
+                  alt="profile"
+                  className="object-cover size-full"
+                />
+              ) : (
+                <User size={16} className="text-gray-400" />
+              )}
+            </span>
+            <span className="text-sm text-gray-500 capitalize">
+              {user.full_name}
+            </span></Link>}
+          <button onClick={logout} className="text-gray-400 hover:text-red-500 transition-colors cursor-pointer">
             <LogOut size={16} />
           </button>
+
         </div>
       </div>
     </nav>
