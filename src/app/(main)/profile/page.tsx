@@ -85,8 +85,7 @@ export default function ProfilePage() {
     </div>
   );
 
-  const photoUrl = preview
-    || (profile?.profile_photo ? `http://localhost:5000/${profile.profile_photo}` : null);
+const photoUrl = preview || profile?.profile_photo || null;
 
   return (
     <div className="min-h-screen bg-gray-50">
