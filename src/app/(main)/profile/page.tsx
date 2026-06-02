@@ -41,7 +41,7 @@ export default function ProfilePage() {
       setForm({
         full_name:  profileData.full_name  || '',
         department: profileData.department || deptData || '',
-        batch:      profileData.batch      || BATCHES,
+        batch: profileData.batch || BATCHES[0],
       });
       setLoading(false);
     })
@@ -67,9 +67,7 @@ export default function ProfilePage() {
     fd.append('batch',      form.batch);
     if (photo) fd.append('photo', photo);
     try {
-      const { data } = await api.put('/profile', fd, {
-        headers: { 'Content-Type': 'multipart/form-data' },
-      });
+      const { data } = await api.put('/profile', fd);
       setProfile(data);
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
@@ -85,7 +83,11 @@ export default function ProfilePage() {
     </div>
   );
 
-const photoUrl = preview || profile?.profile_photo || null;
+const photoUrl =
+  preview ||
+  (profile?.profile_photo
+    ? profile.profile_photo
+    : null);
 
   return (
     <div className="min-h-screen bg-gray-50">

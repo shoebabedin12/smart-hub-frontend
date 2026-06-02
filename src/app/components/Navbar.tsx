@@ -7,6 +7,7 @@ import { usePathname } from 'next/navigation';
 import { Bell, BookOpen, MessageSquare, LogOut, Shield, ClipboardList, User, Calendar } from 'lucide-react';
 import { getUser, logout } from 'app/lib/auth';
 import api from 'app/lib/api';
+import { profile } from 'console';
 
 export default function Navbar() {
   const path = usePathname();
@@ -49,6 +50,12 @@ export default function Navbar() {
     );
   }
 
+  
+const photoUrl =
+  (user?.profile_photo
+    ? user.profile_photo
+    : null);
+
   return (
     <nav className="bg-white border-b border-gray-200 sticky top-0 z-50">
       <div className="max-w-6xl mx-auto px-4 flex items-center justify-between h-14">
@@ -74,7 +81,7 @@ export default function Navbar() {
             <span className='border m-2 size-7.5 rounded-full overflow-hidden flex items-center justify-center'>
               {user.profile_photo ? (
                 <img
-                  src={`http://localhost:5000/${user.profile_photo}`}
+                  src={photoUrl}
                   alt="profile"
                   className="object-cover size-full"
                 />
