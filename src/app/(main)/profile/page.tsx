@@ -3,10 +3,6 @@ import { useEffect, useState, useRef } from 'react';
 import { User, Camera, Save } from 'lucide-react';
 import api from 'app/lib/api';
 
-const DEPARTMENTS = [
-  'Computer Science & Engineering',
-  'Business Administration',
-];
 const BATCHES = ['2021-22','2022-23','2023-24','2024-25','2025-26'];
 
 interface Profile {
@@ -20,23 +16,37 @@ interface Profile {
 }
 
 export default function ProfilePage() {
-  const [profile, setProfile]   = useState<Profile | null>(null);
-  const [form, setForm]         = useState({ full_name: '', department: '', batch: '' });
-  const [photo, setPhoto]       = useState<File | null>(null);
-  const [preview, setPreview]   = useState<string | null>(null);
-  const [loading, setLoading]   = useState(true);
-  const [saving, setSaving]     = useState(false);
-  const [success, setSuccess]   = useState(false);
-  const fileRef                 = useRef<HTMLInputElement>(null);
+  const [profile, setProfile]         = useState<Profile | null>(null);
+  const [departments, setDepartments] = useState<string[]>([]);
+  const [form, setForm]               = useState({ full_name: '', department: '', batch: '' });
+  const [photo, setPhoto]             = useState<File | null>(null);
+  const [preview, setPreview]         = useState<string | null>(null);
+  const [loading, setLoading]         = useState(true);
+  const [saving, setSaving]           = useState(false);
+  const [success, setSuccess]         = useState(false);
+  const fileRef                       = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    api.get('/profile').then(({ data }) => {
-      setProfile(data);
+    Promise.all([
+      api.get('/profile'),
+      api.get('/departments')
+    ])
+    .then(([profileRes, deptRes]) => {
+      const profileData = profileRes.data;
+      const deptData = deptRes.data;
+
+      setProfile(profileData);
+      setDepartments(deptData);
+      
       setForm({
-        full_name:  data.full_name  || '',
-        department: data.department || DEPARTMENTS[0],
-        batch:      data.batch      || BATCHES[0],
+        full_name:  profileData.full_name  || '',
+        department: profileData.department || deptData || '',
+        batch:      profileData.batch      || BATCHES,
       });
+      setLoading(false);
+    })
+    .catch(err => {
+      console.error("Data loading error:", err);
       setLoading(false);
     });
   }, []);
@@ -56,7 +66,6 @@ export default function ProfilePage() {
     fd.append('department', form.department);
     fd.append('batch',      form.batch);
     if (photo) fd.append('photo', photo);
-
     try {
       const { data } = await api.put('/profile', fd, {
         headers: { 'Content-Type': 'multipart/form-data' },
@@ -82,11 +91,9 @@ export default function ProfilePage() {
   return (
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-lg mx-auto px-4 py-10">
-
         <h1 className="text-xl font-bold text-gray-900 mb-6">My Profile</h1>
-
         <div className="bg-white border border-gray-200 rounded-2xl p-6 space-y-6">
-
+          
           {/* Photo */}
           <div className="flex flex-col items-center gap-3">
             <div
@@ -131,7 +138,7 @@ export default function ProfilePage() {
             />
           </div>
 
-          {/* Department */}
+          {/* Department (Dynamic Dropdown) */}
           <div>
             <label className="text-xs font-medium text-gray-700 block mb-1">Department</label>
             <select
@@ -140,14 +147,14 @@ export default function ProfilePage() {
               className="w-full border border-gray-300 rounded-lg px-4 py-2.5 text-sm
                          outline-none focus:border-blue-500"
             >
-              {DEPARTMENTS.map(d => (
+              {Array.isArray(departments) && departments.map(d => (
                 <option key={d} value={d}>{d}</option>
               ))}
             </select>
           </div>
 
           {/* Batch */}
-          <div>
+          {profile?.role !== "admin" && <div>
             <label className="text-xs font-medium text-gray-700 block mb-1">Batch</label>
             <select
               value={form.batch}
@@ -159,7 +166,7 @@ export default function ProfilePage() {
                 <option key={b} value={b}>{b}</option>
               ))}
             </select>
-          </div>
+          </div>}
 
           {/* Save button */}
           {success && (
@@ -176,5 +183,6 @@ export default function ProfilePage() {
           </button>
         </div>
       </div>
-    </div>);
+    </div>
+  );
 }

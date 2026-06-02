@@ -43,18 +43,28 @@ export default function RoutinePage() {
     return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'].includes(today) ? today : 'Sunday';
   });
 
-  useEffect(() => {
-    api.get('/profile').then(({ data }) => {
-      setProfileDept(data.department || '');   // ← add
-      setProfileBatch(data.batch || '');       // ← add
-      if (!data.department || !data.batch) { setLoading(false); return; }
-      api.get(`/routine?department=${encodeURIComponent(data.department)}&batch=${encodeURIComponent(data.batch)}`)
-        .then(({ data: routineData }) => {
-          setRoutine(routineData);
-          setLoading(false);
-        });
-    }).catch(() => setLoading(false));
-  }, []);
+useEffect(() => {
+  api.get('/profile').then(({ data }) => {
+    setProfileDept(data.department || '');
+    setProfileBatch(data.batch || '');
+
+    if (!data.department || !data.batch) {
+      setLoading(false);
+      return;
+    }
+
+    api
+      .get(`/routine?department=${encodeURIComponent(data.department)}&batch=${encodeURIComponent(data.batch)}`)
+      .then(({ data: routineData }) => {
+        const safeData = Array.isArray(routineData)
+          ? routineData
+          : routineData?.results || routineData?.data || [];
+
+        setRoutine(safeData);
+        setLoading(false);
+      });
+  }).catch(() => setLoading(false));
+}, []);
 
   const grouped = DAYS.reduce((acc, day) => {
   acc[day] = routine.filter(r => r.day_of_week === day);
@@ -82,7 +92,7 @@ const todayClasses = grouped[activeDay] || [];
         <div className="flex gap-2 flex-wrap mb-6">
           {DAYS.map(day => (
             <button key={day} onClick={() => setActiveDay(day)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors
+              className={`px-4 py-1.5 rounded-full text-xs font-medium border cursor-pointer transition-colors
                 ${activeDay === day
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>

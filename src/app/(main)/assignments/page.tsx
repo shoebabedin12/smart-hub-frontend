@@ -15,33 +15,33 @@ interface Assignment {
 }
 
 function getDeadlineStatus(deadline: string) {
-  const now  = new Date();
-  const due  = new Date(deadline);
+  const now = new Date();
+  const due = new Date(deadline);
   const diff = due.getTime() - now.getTime();
   const days = Math.ceil(diff / (1000 * 60 * 60 * 24));
 
-  if (diff < 0)      return { label: 'Overdue',        color: 'text-red-500',    bg: 'bg-red-50 border-red-200',    icon: AlertCircle };
-  if (days <= 2)     return { label: `${days}d left`,  color: 'text-orange-500', bg: 'bg-orange-50 border-orange-200', icon: Clock };
-  return             { label: `${days}d left`,          color: 'text-green-600',  bg: 'bg-green-50 border-green-200',  icon: Clock };
+  if (diff < 0) return { label: 'Overdue', color: 'text-red-500', bg: 'bg-red-50 border-red-200', icon: AlertCircle };
+  if (days <= 2) return { label: `${days}d left`, color: 'text-orange-500', bg: 'bg-orange-50 border-orange-200', icon: Clock };
+  return { label: `${days}d left`, color: 'text-green-600', bg: 'bg-green-50 border-green-200', icon: Clock };
 }
 
 export default function AssignmentsPage() {
   const user = getUser();
   const [assignments, setAssignments] = useState<Assignment[]>([]);
-  const [loading, setLoading]         = useState(true);
-  const [filter, setFilter]           = useState<'all'|'pending'|'submitted'>('all');
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState<'all' | 'pending' | 'submitted'>('all');
 
- useEffect(() => {
-  // প্রথমে profile থেকে department+batch নাও
-  api.get('/profile').then(({ data }) => {
-    if (!data.department) { setLoading(false); return; }
-    api.get(`/assignments?department=${encodeURIComponent(data.department)}&batch=${encodeURIComponent(data.batch || '')}`)
-      .then(({ data: assignments }) => {
-        setAssignments(assignments);
+  useEffect(() => {
+    api.get('/profile')
+      .then(({ data }) => {
+        const safeData = Array.isArray(data)
+          ? data
+          : data?.results || data?.data || data?.assignments || [];
+
+        setAssignments(safeData);
         setLoading(false);
       });
-  });
-}, []);
+  }, []);
 
   const handleSubmit = async (id: number) => {
     await api.post(`/assignments/${id}/submit`, {});
@@ -50,14 +50,14 @@ export default function AssignmentsPage() {
     );
   };
 
-  const filtered = assignments.filter(a => {
-    if (filter === 'pending')   return !a.submitted;
+  const filtered = (assignments || []).filter(a => {
+    if (filter === 'pending') return !a.submitted;
     if (filter === 'submitted') return a.submitted;
     return true;
   });
 
-  const pendingCount   = assignments.filter(a => !a.submitted).length;
-  const submittedCount = assignments.filter(a => a.submitted).length;
+ const pendingCount = (assignments || []).filter(a => !a.submitted).length;
+const submittedCount = (assignments || []).filter(a => a.submitted).length;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -75,7 +75,7 @@ export default function AssignmentsPage() {
         <div className="flex gap-2 mb-6">
           {(['all', 'pending', 'submitted'] as const).map(f => (
             <button key={f} onClick={() => setFilter(f)}
-              className={`px-4 py-1.5 rounded-full text-xs font-medium border transition-colors capitalize
+              className={`px-4 py-1.5 rounded-full cursor-pointer text-xs font-medium border transition-colors capitalize
                 ${filter === f
                   ? 'bg-blue-600 text-white border-blue-600'
                   : 'bg-white text-gray-600 border-gray-200 hover:border-blue-300'}`}>

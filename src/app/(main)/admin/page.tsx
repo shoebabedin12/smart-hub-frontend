@@ -2,7 +2,7 @@
 import { useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Bell, BookOpen } from 'lucide-react';
+import { Bell, BookOpen, Building } from 'lucide-react';
 import { getUser } from 'app/lib/auth';
 
 export default function AdminPage() {
@@ -35,6 +35,15 @@ export default function AdminPage() {
             <div>
               <h2 className="font-semibold text-gray-900">Upload Resources</h2>
               <p className="text-sm text-gray-500 mt-1">Upload PDFs and documents. They get AI-indexed automatically.</p>
+            </div>
+          </Link>
+
+          <Link href="/admin/departments"
+            className="bg-white border border-gray-200 rounded-xl p-6 flex flex-col gap-3 hover:border-blue-300 transition-colors sm:col-span-2 lg:col-span-1">
+            <Building size={24} className="text-blue-600" />
+            <div>
+              <h2 className="font-semibold text-gray-900">Departments</h2>
+              <p className="text-sm text-gray-500 mt-1">Add, update, or remove academic departments dynamically.</p>
             </div>
           </Link>
         </div>
