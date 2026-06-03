@@ -1,3 +1,5 @@
+/* eslint-disable react-hooks/set-state-in-effect */
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { useEffect, useState } from 'react';
 import { Plus, Trash2, X } from 'lucide-react';
@@ -5,7 +7,8 @@ import api from 'app/lib/api';
 
 interface ClassItem {
   id: number;
-  department: string;
+  department_id: number;
+  department_name: string;
   batch: string;
   day_of_week: string;
   start_time: string;
@@ -16,8 +19,6 @@ interface ClassItem {
   room: string;
 }
 
-const DEPARTMENTS = ['Computer Science & Engineering', 'Business Administration'];
-const BATCHES = ['2021-22', '2022-23', '2023-24', '2024-25', '2025-26'];
 const DAYS = ['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'];
 
 export default function ManageRoutinePage() {
@@ -25,13 +26,17 @@ export default function ManageRoutinePage() {
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [filterDept, setFilterDept] = useState(DEPARTMENTS[0]);
-  const [filterBatch, setFilterBatch] = useState(BATCHES[0]);
+
+  const [dbDepartments, setDbDepartments] = useState<any[]>([]);
+  const [dbBatches, setDbBatches] = useState<string[]>([]);
+
+  const [filterDeptId, setFilterDeptId] = useState(''); // 👈 ID স্টেট
+  const [filterBatch, setFilterBatch] = useState('');
   const [teachers, setTeachers] = useState<{ id: number, full_name: string }[]>([]);
 
   const [form, setForm] = useState({
-    department: DEPARTMENTS[0],
-    batch: BATCHES[0],
+    department_id: '', // 👈 ID ফর্ম ফিল্ড
+    batch: '',
     day_of_week: 'Sunday',
     start_time: '08:00',
     end_time: '09:30',
@@ -41,33 +46,67 @@ export default function ManageRoutinePage() {
     room: '',
   });
 
+  useEffect(() => {
+    // 🛠️ ফিক্সড: এভেইলেবল টিচার লোড (সেফ গার্ডসহ)
+    api.get('/users?role=faculty')
+      .then(({ data }) => {
+        // ডাটা অ্যারে কিনা চেক করে সেট করা হচ্ছে, না হলে খালি অ্যারে ব্যাকআপ
+        const safeTeachers = Array.isArray(data)
+          ? data
+          : (data?.results || data?.data || []);
+        setTeachers(safeTeachers);
+      })
+      .catch((err) => {
+        console.error("Teachers load error:", err);
+        setTeachers([]); // এরর খেলেও যেন অ্যাপ ক্র্যাশ না করে
+      });
+
+    // ১. ডিপার্টমেন্ট টেবিল থেকে ডেটা আনা
+    api.get('/notices/departments').then(({ data }) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setDbDepartments(data);
+        setFilterDeptId(data[0].id.toString()); // প্রথম ডিপার্টমেন্টের ID ডিফল্ট সেট
+        setForm(f => ({ ...f, department_id: data[0].id.toString() }));
+      }
+    }).catch(() => { });
+
+    // ২. ব্যাচ আনা
+    api.get('/routine/batches').then(({ data }) => {
+      if (Array.isArray(data) && data.length > 0) {
+        setDbBatches(data);
+        setFilterBatch(data[0]);
+        setForm(f => ({ ...f, batch: data[0] }));
+      }
+    }).catch(() => { });
+  }, []);
+
   const loadRoutine = () => {
+    if (!filterDeptId || !filterBatch) return;
     setLoading(true);
-    api.get(`/routine?department=${encodeURIComponent(filterDept)}&batch=${encodeURIComponent(filterBatch)}`)
-      .then(({ data }) => { setRoutine(data); setLoading(false); });
+    // 🛠️ এখন department_id পাস করা হচ্ছে এপিআই-তে
+    api.get(`/routine?department_id=${filterDeptId}&batch=${encodeURIComponent(filterBatch)}`)
+      .then(({ data }) => {
+        const safeData = Array.isArray(data) ? data : [];
+        setRoutine(safeData);
+        setLoading(false);
+      })
+      .catch(() => {
+        setRoutine([]);
+        setLoading(false);
+      });
   };
 
-  useEffect(() => { loadRoutine(); }, [filterDept, filterBatch]);
-
   useEffect(() => {
-    // Teachers load করো
-    api.get('/users?role=faculty').then(({ data }) => {
-      setTeachers(data);
-    });
     loadRoutine();
-  }, [filterDept, filterBatch]);
+  }, [filterDeptId, filterBatch]);
 
   const handleCreate = async () => {
-    if (!form.subject || !form.teacher) return;
+    if (!form.subject || !form.teacher || !form.department_id || !form.batch) return;
     setSaving(true);
     try {
       await api.post('/routine', form);
       setShowForm(false);
-      setForm({
-        department: DEPARTMENTS[0], batch: BATCHES[0],
-        day_of_week: 'Sunday', start_time: '08:00', end_time: '09:30',
-        subject: '', subject_code: '', teacher: '', room: '',
-      });
+      setForm(f => ({ ...f, subject: '', subject_code: '', teacher: '', room: '' }));
       loadRoutine();
     } catch (err) { console.error(err); }
     setSaving(false);
@@ -75,8 +114,10 @@ export default function ManageRoutinePage() {
 
   const handleDelete = async (id: number) => {
     if (!confirm('Delete this class?')) return;
-    await api.delete(`/routine/${id}`);
-    setRoutine(prev => prev.filter(r => r.id !== id));
+    try {
+      await api.delete(`/routine/${id}`);
+      setRoutine(prev => prev.filter(r => r.id !== id));
+    } catch { }
   };
 
   const grouped = DAYS.reduce((acc, day) => {
@@ -88,12 +129,10 @@ export default function ManageRoutinePage() {
     <div className="min-h-screen bg-gray-50">
       <div className="max-w-4xl mx-auto px-4 py-8">
 
-        {/* Header */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-bold text-gray-900">Manage Routine</h1>
           <button onClick={() => setShowForm(true)}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white
-                       rounded-lg text-sm font-medium hover:bg-blue-700">
+            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-medium hover:bg-blue-700">
             <Plus size={15} /> Add Class
           </button>
         </div>
@@ -102,21 +141,21 @@ export default function ManageRoutinePage() {
         <div className="bg-white border border-gray-200 rounded-xl p-4 mb-6 flex gap-3">
           <div className="flex-1">
             <label className="text-xs font-medium text-gray-500 block mb-1">Department</label>
-            <select value={filterDept} onChange={e => setFilterDept(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-              {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+            <select value={filterDeptId} onChange={e => setFilterDeptId(e.target.value)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white">
+              {dbDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
             </select>
           </div>
           <div className="flex-1">
             <label className="text-xs font-medium text-gray-500 block mb-1">Batch</label>
             <select value={filterBatch} onChange={e => setFilterBatch(e.target.value)}
-              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-              {BATCHES.map(b => <option key={b} value={b}>{b}</option>)}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white">
+              {dbBatches.map(b => <option key={b} value={b}>{b}</option>)}
             </select>
           </div>
         </div>
 
-        {/* Create Form Modal */}
+        {/* Modal Form */}
         {showForm && (
           <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 px-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl max-h-[90vh] overflow-y-auto">
@@ -131,18 +170,18 @@ export default function ManageRoutinePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-gray-600 block mb-1">Department</label>
-                    <select value={form.department}
-                      onChange={e => setForm({ ...form, department: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                      {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                    <select value={form.department_id}
+                      onChange={e => setForm({ ...form, department_id: e.target.value })}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white">
+                      {dbDepartments.map(d => <option key={d.id} value={d.id}>{d.name}</option>)}
                     </select>
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-600 block mb-1">Batch</label>
                     <select value={form.batch}
                       onChange={e => setForm({ ...form, batch: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                      {BATCHES.map(b => <option key={b} value={b}>{b}</option>)}
+                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white">
+                      {dbBatches.map(b => <option key={b} value={b}>{b}</option>)}
                     </select>
                   </div>
                 </div>
@@ -151,7 +190,7 @@ export default function ManageRoutinePage() {
                   <label className="text-xs font-medium text-gray-600 block mb-1">Day</label>
                   <select value={form.day_of_week}
                     onChange={e => setForm({ ...form, day_of_week: e.target.value })}
-                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white">
                     {DAYS.map(d => <option key={d} value={d}>{d}</option>)}
                   </select>
                 </div>
@@ -174,52 +213,44 @@ export default function ManageRoutinePage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="text-xs font-medium text-gray-600 block mb-1">Subject</label>
-                    <input type="text" placeholder="e.g. Machine Learning"
-                      value={form.subject}
+                    <input type="text" value={form.subject}
                       onChange={e => setForm({ ...form, subject: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" />
                   </div>
                   <div>
                     <label className="text-xs font-medium text-gray-600 block mb-1">Subject Code</label>
-                    <input type="text" placeholder="e.g. CSE4101"
-                      value={form.subject_code}
+                    <input type="text" value={form.subject_code}
                       onChange={e => setForm({ ...form, subject_code: e.target.value })}
                       className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" />
                   </div>
                 </div>
 
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 block mb-1">Teacher</label>
-                    <select value={form.teacher}
-                      onChange={e => setForm({ ...form, teacher: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500">
-                      <option value="">— Select Teacher —</option>
-                      {teachers.map(t => (
-                        <option key={t.id} value={t.full_name}>{t.full_name}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="text-xs font-medium text-gray-600 block mb-1">Room</label>
-                    <input type="text" placeholder="e.g. 301"
-                      value={form.room}
-                      onChange={e => setForm({ ...form, room: e.target.value })}
-                      className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" />
-                  </div>
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Teacher</label>
+                  <select value={form.teacher} onChange={e => setForm({ ...form, teacher: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500 bg-white">
+                    <option value="">— Select Teacher —</option>
+                    {teachers.map(t => <option key={t.id} value={t.full_name}>{t.full_name}</option>)}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-xs font-medium text-gray-600 block mb-1">Room</label>
+                  <input type="text" value={form.room}
+                    onChange={e => setForm({ ...form, room: e.target.value })}
+                    className="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm outline-none focus:border-blue-500" />
                 </div>
               </div>
 
               <button onClick={handleCreate} disabled={saving}
-                className="w-full mt-4 bg-blue-600 text-white py-2.5 rounded-lg text-sm
-                           font-medium hover:bg-blue-700 disabled:opacity-50">
+                className="w-full mt-4 bg-blue-600 text-white py-2.5 rounded-lg text-sm font-medium hover:bg-blue-700 disabled:opacity-50">
                 {saving ? 'Adding...' : 'Add Class'}
               </button>
             </div>
           </div>
         )}
 
-        {/* Routine list grouped by day */}
+        {/* Routine list */}
         {loading ? (
           <p className="text-gray-400 text-sm">Loading...</p>
         ) : routine.length === 0 ? (

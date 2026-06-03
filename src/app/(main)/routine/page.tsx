@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 'use client';
 import { useEffect, useState } from 'react';
 import { Clock, MapPin, User } from 'lucide-react';
@@ -35,43 +36,49 @@ export default function RoutinePage() {
   const user = getUser();
   const [routine, setRoutine] = useState<ClassItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [profileDept, setProfileDept] = useState('');  // ← add
-  const [profileBatch, setProfileBatch] = useState(''); // ← add
+  const [profileDept, setProfileDept] = useState('');
+  const [profileBatch, setProfileBatch] = useState('');
   const [activeDay, setActiveDay] = useState(() => {
     const days = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
     const today = days[new Date().getDay()];
     return ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday'].includes(today) ? today : 'Sunday';
   });
 
-useEffect(() => {
-  api.get('/profile').then(({ data }) => {
-    setProfileDept(data.department || '');
-    setProfileBatch(data.batch || '');
+  useEffect(() => {
+    api.get('/profile').then(({ data }) => {
+      // 🛠️ ফিক্সড: রেসপন্স অবজেক্ট অনুযায়ী সঠিক Key (department_id এবং department_name) ধরা হলো
+      const deptId = data.department_id;
+      const deptName = data.department_name || data.department || 'Your Department';
 
-    if (!data.department || !data.batch) {
-      setLoading(false);
-      return;
-    }
+      setProfileDept(deptName);
+      setProfileBatch(data.batch || '');
 
-    api
-      .get(`/routine?department=${encodeURIComponent(data.department)}&batch=${encodeURIComponent(data.batch)}`)
-      .then(({ data: routineData }) => {
-        const safeData = Array.isArray(routineData)
-          ? routineData
-          : routineData?.results || routineData?.data || [];
-
-        setRoutine(safeData);
+      if (!deptId || !data.batch) {
         setLoading(false);
-      });
-  }).catch(() => setLoading(false));
-}, []);
+        return;
+      }
+
+      // সঠিক department_id এবং batch দিয়ে রুটিন কল করা হচ্ছে
+      api
+        .get(`/routine?department_id=${deptId}&batch=${encodeURIComponent(data.batch)}`)
+        .then(({ data: routineData }) => {
+          const safeData = Array.isArray(routineData) ? routineData : [];
+          setRoutine(safeData);
+          setLoading(false);
+        })
+        .catch(() => {
+          setRoutine([]);
+          setLoading(false);
+        });
+    }).catch(() => setLoading(false));
+  }, []);
 
   const grouped = DAYS.reduce((acc, day) => {
-  acc[day] = routine.filter(r => r.day_of_week === day);
-  return acc;
-}, {} as Record<string, ClassItem[]>);
+    acc[day] = routine.filter(r => r.day_of_week === day);
+    return acc;
+  }, {} as Record<string, ClassItem[]>);
 
-const todayClasses = grouped[activeDay] || [];
+  const todayClasses = grouped[activeDay] || [];
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -80,7 +87,7 @@ const todayClasses = grouped[activeDay] || [];
           <div>
             <h1 className="text-xl font-bold text-gray-900">Class Routine</h1>
             {profileDept && (
-              <p className="text-xs text-gray-400 mt-0.5">{user.department} — Batch {user.batch}</p>
+              <p className="text-xs text-gray-400 mt-0.5">{profileDept} — Batch {profileBatch}</p>
             )}
           </div>
           <span className={`px-3 py-1 rounded-full text-xs font-semibold ${DAY_BADGE[activeDay] || 'bg-gray-100 text-gray-600'}`}>
@@ -128,8 +135,7 @@ const todayClasses = grouped[activeDay] || [];
                     <p className="font-semibold text-gray-800">{cls.subject}</p>
                     <p className="text-xs text-gray-500 mt-0.5">{cls.subject_code}</p>
                   </div>
-                  <span className="text-xs font-mono bg-white border border-gray-200
-                                   px-2 py-1 rounded-lg text-gray-600">
+                  <span className="text-xs font-mono bg-white border border-gray-200 px-2 py-1 rounded-lg text-gray-600">
                     {cls.start_time.slice(0, 5)} – {cls.end_time.slice(0, 5)}
                   </span>
                 </div>
