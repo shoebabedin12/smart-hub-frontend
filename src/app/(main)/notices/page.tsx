@@ -54,7 +54,7 @@ export default function NoticesPage() {
         setCategories(['all', ...data]);
         if (data.length > 0) {
           // 🛠️ টাইপো ফিক্স: ডাটার প্রথম ইনডেক্স পাস করা হয়েছে
-          setForm(f => ({ ...f, category: data }));
+          setForm(f => ({ ...f, category: data[0] }));
         }
       }
     } catch (err) {
@@ -122,7 +122,8 @@ export default function NoticesPage() {
       setForm({ 
         title: '', 
         body: '', 
-        category: categories.filter(c => c !== 'all') || 'General', 
+        // pick first non-'all' category or default to 'General'
+        category: (categories.filter(c => c !== 'all')[0]) || 'General', 
         department_id: 'all', 
         is_pinned: false 
       });
